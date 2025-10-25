@@ -1,0 +1,36 @@
+{
+  "name": "server",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "server": "nodemon server.js",
+    "start": "node server.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@clerk/express": "^1.7.37",
+    "@neondatabase/serverless": "^1.0.2",
+    "axios": "^1.12.2",
+    "cloudinary": "^2.7.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "multer": "^2.0.2",
+    "nodemon": "^3.1.10",
+    "openai": "^6.2.0",
+    "pdf-parse": "^2.2.11",
+    "puppeteer": "^24.26.1"
+  },
+  "devDependencies": {
+    "@babel/preset-env": "^7.28.5",
+    "jest": "^30.2.0",
+    "supertest": "^7.1.4"
+  }
+}
