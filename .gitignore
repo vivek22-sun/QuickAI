@@ -9,6 +9,10 @@ node_modules/
 .env.test.local
 .env.production.local
 
+# Uploads directory
+uploads/
+*/uploads/
+
 # Build outputs
 dist/
 build/

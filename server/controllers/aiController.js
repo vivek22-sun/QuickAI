@@ -151,8 +151,15 @@ export const generateImage = async (req, res) => {
 export const removeImageBackground = async (req, res) => {
   try {
     const { userId } = req.auth();
-    const { image } = req.file;
     const plan = req.plan;
+
+    // Check if file was uploaded
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "No image file uploaded",
+      });
+    }
 
     if (plan !== "premium") {
       return res.json({
@@ -161,7 +168,7 @@ export const removeImageBackground = async (req, res) => {
       });
     }
 
-    const { secure_url } = await cloudinary.uploader.upload(image.path, {
+    const { secure_url } = await cloudinary.uploader.upload(req.file.path, {
       transformation: [
         {
           effect: "background_removal",
@@ -186,8 +193,15 @@ export const removeImageObject = async (req, res) => {
   try {
     const { userId } = req.auth();
     const { object } = req.body;
-    const { image } = req.file;
     const plan = req.plan;
+
+    // Check if file was uploaded
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "No image file uploaded",
+      });
+    }
 
     if (plan !== "premium") {
       return res.json({
@@ -196,7 +210,7 @@ export const removeImageObject = async (req, res) => {
       });
     }
 
-    const { public_id } = await cloudinary.uploader.upload(image.path);
+    const { public_id } = await cloudinary.uploader.upload(req.file.path);
 
     const image_url = cloudinary.url(public_id, {
       transformation: [{ effect: `gen_remove:${object}` }],

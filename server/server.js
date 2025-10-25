@@ -25,7 +25,28 @@ app.use('/api/ai',aiRouter)
 
 app.use('/api/user',userRouter)
 
-
+// Error handling middleware for multer
+app.use((error, req, res, next) => {
+  if (error) {
+    if (error.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({
+        success: false,
+        message: 'File too large. Maximum size is 10MB.'
+      });
+    }
+    if (error.message === 'Only image files and PDFs are allowed!') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid file type. Only images and PDFs are allowed.'
+      });
+    }
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Server error'
+    });
+  }
+  next();
+});
 
 const PORT=process.env.PORT || 3000;
 
