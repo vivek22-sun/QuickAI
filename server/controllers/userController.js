@@ -4,24 +4,24 @@ export const getUserCreations = async (req,res)=>{
     try{
 
         const {userId}=req.auth();
-        await sql`SELECT * FROM creations WHERE userId=${userId} ORDER BY created_at DESC`;
-        res.json({success:true,data:creations})
+        const creations = await sql`SELECT * FROM creations WHERE "userId"=${userId} ORDER BY created_at DESC`;
+        res.json({success:true,creations:creations})
 
     }
     catch(err){
-        res.json({success:false,message:error.message})
+        res.json({success:false,message:err.message})
     }
 
 }
 
 export const getPublishedCreation = async (req,res)=>{
     try{
-        await sql`SELECT * FROM creations WHERE publish=true ORDER BY created_at DESC`;
-        res.json({success:true,data:creations})
+        const creations = await sql`SELECT * FROM creations WHERE publish=true ORDER BY created_at DESC`;
+        res.json({success:true,creations:creations})
 
     }
     catch(err){
-        res.json({success:false,message:error.message})
+        res.json({success:false,message:err.message})
     }
 }
 
@@ -49,15 +49,17 @@ export const toggleLikeCreation = async (req,res)=>{
             message="Creation Liked";
         }
 
-        const formatedArray=`{${updatedLikes.json(',')}}`
+        const formatedArray=`{${updatedLikes.join(',')}}`
 
         await sql`update creations set likes=${formatedArray}::text[] where id=${id};`
 
-        res.json({success:true,data:creations})
+        const [updatedCreation] = await sql`select * from creations where id=${id};`
+
+        res.json({success:true,data:updatedCreation, message})
 
     }
     catch(err){
-        res.json({success:false,message:error.message})
+        res.json({success:false,message:err.message})
     }
 }
 

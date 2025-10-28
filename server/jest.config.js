@@ -1,5 +1,4 @@
 export default {
-  preset: 'node',
   testEnvironment: 'node',
   transform: {},
   testMatch: ['**/__tests__/**/*.js', '**/?(*.)+(spec|test).js'],
@@ -8,7 +7,4 @@ export default {
     '!controllers/**/*.test.js'
   ],
   setupFilesAfterEnv: ['<rootDir>/test/setup.js'],
-  experimental: {
-    esm: true
-  }
 }

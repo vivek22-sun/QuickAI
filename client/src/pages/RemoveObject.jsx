@@ -1,6 +1,6 @@
-import React, { useState } from 'react'
+import React, { useState } from 'react';
 import axios from 'axios';
-import { Sparkles, Eraser } from 'lucide-react'
+import { Sparkles, Eraser, Download } from 'lucide-react';
 import { useAuth } from '@clerk/clerk-react';
 import toast from 'react-hot-toast';
 
@@ -9,14 +9,14 @@ axios.defaults.baseURL = import.meta.env.VITE_BASE_URL;
 const RemoveObject = () => {
   const [input, setInput] = useState(null); // file input
   const [object, setObject] = useState(''); // object name
-  const [content, setContent] = useState(null); // processed image
+  const [content, setContent] = useState(null); // processed image (base64)
   const [loading, setLoading] = useState(false);
+  const [downloadLoading, setDownloadLoading] = useState(false);
   const { getToken } = useAuth();
 
   const onSubmitHandler = async (e) => {
     e.preventDefault();
     if (!input || !object.trim()) return toast.error('Please upload an image and enter object name');
-
     if (object.split(' ').length > 1) return toast.error('Please enter only one object name');
 
     try {
@@ -31,7 +31,7 @@ const RemoveObject = () => {
       });
 
       if (data.success) {
-        setContent(data.content); // assuming backend returns base64 string
+        setContent(data.content);
         toast.success('Object removed successfully!');
       } else {
         toast.error(data.message);
@@ -41,7 +41,20 @@ const RemoveObject = () => {
     } finally {
       setLoading(false);
     }
-  }
+  };
+
+  const downloadImage = () => {
+    if (!content) return;
+    setDownloadLoading(true);
+    const link = document.createElement('a');
+    link.href = `data:image/png;base64,${content}`;
+    link.download = `processed_image_${Date.now()}.png`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setDownloadLoading(false);
+    toast.success('Image downloaded successfully!');
+  };
 
   return (
     <div className="w-full min-h-screen bg-[#f7f8fa] flex items-center justify-center">
@@ -56,9 +69,9 @@ const RemoveObject = () => {
 
           <label className="font-medium text-sm mb-2">Upload image</label>
           <input
-            type='file'
-            accept='image/*'
-            className='w-full mb-5 px-4 py-3 rounded border border-gray-300 text-sm text-gray-700 bg-[#f8f9fb] font-medium focus:outline-none'
+            type="file"
+            accept="image/*"
+            className="w-full mb-5 px-4 py-3 rounded border border-gray-300 text-sm text-gray-700 bg-[#f8f9fb] font-medium focus:outline-none"
             onChange={e => setInput(e.target.files[0])}
             required
           />
@@ -97,11 +110,30 @@ const RemoveObject = () => {
           </div>
 
           {content ? (
-            <img
-              src={`data:image/png;base64,${content}`}
-              alt="Processed"
-              className="max-w-full h-64 rounded-xl shadow-lg border mb-4"
-            />
+            <>
+              <img
+                src={`data:image/png;base64,${content}`}
+                alt="Processed"
+                className="max-w-full h-64 rounded-xl shadow-lg border mb-4"
+              />
+              <button
+                onClick={downloadImage}
+                disabled={downloadLoading}
+                className="w-full flex justify-center items-center gap-3 py-3 rounded-xl bg-blue-600 text-white font-semibold text-base shadow-lg transition-all hover:bg-blue-700"
+              >
+                {downloadLoading ? (
+                  <span className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin"></span>
+                ) : (
+                  <>
+                    <Download className="w-5" /> Download Image
+                  </>
+                )}
+              </button>
+            </>
+          ) : input ? (
+            <div className="flex flex-col items-center gap-4 text-gray-400 mt-2">
+              <span className="text-base text-center">Processing image...</span>
+            </div>
           ) : (
             <div className="flex flex-col items-center gap-4 text-gray-400 mt-2">
               <Eraser className="w-10 h-10" />
@@ -115,7 +147,7 @@ const RemoveObject = () => {
 
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default RemoveObject
+export default RemoveObject;

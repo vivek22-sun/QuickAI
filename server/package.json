@@ -7,6 +7,9 @@
   "scripts": {
     "server": "nodemon server.js",
     "start": "node server.js",
+    "init-db": "node scripts/initDb.js",
+    "test-db": "node scripts/testDatabase.js",
+    "test-api": "node scripts/testAPI.js",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
@@ -25,7 +28,7 @@
     "multer": "^2.0.2",
     "nodemon": "^3.1.10",
     "openai": "^6.2.0",
-    "pdf-parse": "^2.2.11",
+    "pdf-parse": "^1.1.1",
     "puppeteer": "^24.26.1"
   },
   "devDependencies": {

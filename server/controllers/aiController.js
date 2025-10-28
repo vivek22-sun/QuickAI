@@ -5,8 +5,11 @@ import axios from "axios";
 import { v2 as cloudinary } from "cloudinary";
 import FormData from "form-data";
 import fs from "fs";
-import * as pdf from "pdf-parse";
 import puppeteer from "puppeteer";
+import { createRequire } from "module";
+
+const require = createRequire(import.meta.url);
+
 
 const client = new OpenAI({
   apiKey: process.env.GEMINI_API_KEY,
@@ -46,8 +49,8 @@ export const generateArticle = async (req, res) => {
 
     // Save to DB
     await sql`
-      INSERT INTO creations (user_id, prompt, content, type)
-      VALUES (${userId}, ${prompt}, ${content}, 'article')
+      INSERT INTO creations ("userId", prompt, content, type, publish)
+      VALUES (${userId}, ${prompt}, ${content}, 'article', false)
     `;
 
     // Update usage for free users
@@ -59,12 +62,16 @@ export const generateArticle = async (req, res) => {
 
     return res.json({ success: true, content });
   } catch (err) {
-    console.error("Gemini API error:", err);
-    return res.status(500).json({ success: false, message: "Internal server error" });
+    console.error("Article generation error:", err.message || err);
+    if (err.message && err.message.includes("API key")) {
+      return res.status(500).json({ success: false, message: "AI service configuration error" });
+    }
+    if (err.message && err.message.includes("quota")) {
+      return res.status(429).json({ success: false, message: "AI service rate limit reached. Please try again later." });
+    }
+    return res.status(500).json({ success: false, message: "Failed to generate article" });
   }
 };
-
-
 
 
 export const generateBlogTitle = async (req, res) => {
@@ -91,8 +98,8 @@ export const generateBlogTitle = async (req, res) => {
     const content = response.choices[0].message.content;
 
     await sql`
-      INSERT INTO creations (user_id, prompt, content, type)
-      VALUES (${userId}, ${prompt}, ${content}, 'article')
+      INSERT INTO creations ("userId", prompt, content, type, publish)
+      VALUES (${userId}, ${prompt}, ${content}, 'article', false)
     `;
 
     if (plan !== "premium") {
@@ -103,8 +110,14 @@ export const generateBlogTitle = async (req, res) => {
 
     return res.json({ success: true, content });
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ success: false, message: "Internal server error" });
+    console.error("Blog title generation error:", err.message || err);
+    if (err.message && err.message.includes("API key")) {
+      return res.status(500).json({ success: false, message: "AI service configuration error" });
+    }
+    if (err.message && err.message.includes("quota")) {
+      return res.status(429).json({ success: false, message: "AI service rate limit reached. Please try again later." });
+    }
+    return res.status(500).json({ success: false, message: "Failed to generate blog title" });
   }
 };
 
@@ -137,13 +150,45 @@ export const generateImage = async (req, res) => {
     const { secure_url } = await cloudinary.uploader.upload(base64Image);
 
     await sql`
-      INSERT INTO creations (user_id, prompt, content, type, publish)
+      INSERT INTO creations ("userId", prompt, content, type, publish)
       VALUES (${userId}, ${prompt}, ${secure_url}, 'image', ${publish})
     `;
 
     return res.json({ success: true, content: secure_url });
   } catch (err) {
-    console.error(err);
+    // Handle API errors with meaningful responses
+    if (err.response) {
+      const status = err.response.status;
+      const headers = err.response.headers;
+      
+      // Handle Clipdrop-specific errors
+      if (headers['x-unacceptable-content-detected'] === 'true') {
+        const contentType = headers['x-unacceptable-content-type'];
+        console.error(`Clipdrop rejected content (${contentType}):`, err.message);
+        return res.status(422).json({ 
+          success: false, 
+          message: `Image generation rejected: ${contentType.toUpperCase()} content detected. Please use a different prompt.` 
+        });
+      }
+      
+      if (status === 403) {
+        console.error("Clipdrop API authentication failed:", err.message);
+        return res.status(403).json({ 
+          success: false, 
+          message: "API authentication failed. Please check server configuration." 
+        });
+      }
+      
+      if (status >= 400 && status < 500) {
+        console.error(`Clipdrop API error (${status}):`, err.message);
+        return res.status(status).json({ 
+          success: false, 
+          message: `Image generation failed: ${err.message}` 
+        });
+      }
+    }
+    
+    console.error("Image generation error:", err);
     return res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
@@ -178,14 +223,17 @@ export const removeImageBackground = async (req, res) => {
     });
 
     await sql`
-      INSERT INTO creations (user_id, prompt, content, type)
-      VALUES (${userId}, 'Remove background from image', ${secure_url}, 'image')
+      INSERT INTO creations ("userId", prompt, content, type, publish)
+      VALUES (${userId}, 'Remove background from image', ${secure_url}, 'image', true)
     `;
 
     return res.json({ success: true, content: secure_url });
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ success: false, message: "Internal server error" });
+    console.error("Background removal error:", err.message || err);
+    if (err.message && err.message.includes("Invalid")) {
+      return res.status(400).json({ success: false, message: "Invalid image format or file" });
+    }
+    return res.status(500).json({ success: false, message: "Failed to process image" });
   }
 };
 
@@ -217,15 +265,27 @@ export const removeImageObject = async (req, res) => {
       resource_type: "image",
     });
 
+    // Save the URL to database for community display
     await sql`
-      INSERT INTO creations (user_id, prompt, content, type)
-      VALUES (${userId}, ${`Removed ${object} from image`}, ${image_url}, 'image')
+      INSERT INTO creations ("userId", prompt, content, type, publish)
+      VALUES (${userId}, ${`Removed ${object} from image`}, ${image_url}, 'image', true)
     `;
 
-    return res.json({ success: true, content: image_url });
+    // Fetch the processed image and convert to base64 for frontend display
+    const imageResponse = await fetch(image_url);
+    const imageBuffer = await imageResponse.arrayBuffer();
+    const base64Content = Buffer.from(imageBuffer).toString('base64');
+
+    return res.json({ success: true, content: base64Content });
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ success: false, message: "Internal server error" });
+    console.error("Object removal error:", err.message || err);
+    if (err.message && err.message.includes("Invalid")) {
+      return res.status(400).json({ success: false, message: "Invalid image format or file" });
+    }
+    if (err.message && err.message.includes("fetch")) {
+      return res.status(500).json({ success: false, message: "Failed to process generated image" });
+    }
+    return res.status(500).json({ success: false, message: "Failed to remove object from image" });
   }
 };
 
@@ -235,28 +295,21 @@ export const resumeReview = async (req, res) => {
     const resume = req.file;
     const plan = req.plan;
 
-    if (plan !== "premium") {
-      return res.json({
-        success: false,
-        message: "Limit reached. Upgrade to continue",
-      });
-    }
+    if (!resume) return res.status(400).json({ success: false, message: 'No resume uploaded' });
+    if (plan !== 'premium') return res.json({ success: false, message: 'Limit reached. Upgrade to continue' });
+    if (resume.size > 5 * 1024 * 1024) return res.json({ success: false, message: 'Resume size must be less than 5MB' });
 
-    if (resume.size > 5 * 1024 * 1024) {
-      return res.json({
-        success: false,
-        message: "Resume size must be less than 5MB",
-      });
-    }
-
+    // Dynamic import of pdf-parse within the function
+    const pdfParse = require('pdf-parse');
+    
     const dataBuffer = fs.readFileSync(resume.path);
-    const pdfData = await pdf(dataBuffer);
+    const pdfData = await pdfParse(dataBuffer);
 
-    const prompt=`Review the following resume and provide constructive feedback on its strengths,weakness, and areas for improvement. Resume Content:\n\n${pdfData.text}`
+    const prompt = `Review the following resume and provide constructive feedback on its strengths, weaknesses, and areas for improvement. Resume Content:\n\n${pdfData.text}`;
 
     const response = await client.chat.completions.create({
-      model: "gemini-2.0-flash-exp",
-      messages: [{ role: "user", content: prompt }],
+      model: 'gemini-2.0-flash-exp',
+      messages: [{ role: 'user', content: prompt }],
       temperature: 0.7,
       max_tokens: 1000,
     });
@@ -264,14 +317,20 @@ export const resumeReview = async (req, res) => {
     const content = response.choices[0].message.content;
 
     await sql`
-      INSERT INTO creations (user_id, prompt, content, type)
-      VALUES (${userId},'Review the uploaded resume', ${content}, 'resume-review')
+      INSERT INTO creations ("userId", prompt, content, type, publish)  
+      VALUES (${userId}, 'Review the uploaded resume', ${content}, 'resume-review', false)
     `;
 
     return res.json({ success: true, content });
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ success: false, message: "Internal server error" });
+    console.error("Resume review error:", err.message || err);
+    if (err.message && err.message.includes("PDF")) {
+      return res.status(400).json({ success: false, message: "Invalid PDF file or corrupted file" });
+    }
+    if (err.message && err.message.includes("API")) {
+      return res.status(500).json({ success: false, message: "AI service error. Please try again." });
+    }
+    return res.status(500).json({ success: false, message: "Failed to review resume" });
   }
 };
 
